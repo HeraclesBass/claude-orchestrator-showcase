@@ -1,0 +1,109 @@
+#!/bin/bash
+# V11 Hook: track-agents (PostToolUse — Task)
+# Logs agent metrics to JSONL and suggests escalation after consecutive failures.
+# Replaces V8 track-agent-metrics (120L) + detect-model-escalation (133L) = 253L merged.
+# Never blocks (exit 0 always).
+
+source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
+
+if [ "$1" == "--test" ]; then
+    echo "track-agents v1 (merged metrics+escalation)"
+    exit 0
+fi
+
+v11_parse_input
+
+# Only track Task tool invocations (agent launches)
+[ "$V11_TOOL_NAME" != "Task" ] && exit 0
+
+mkdir -p "$METRICS_DIR"
+
+# Extract agent info from tool input
+SUBAGENT_TYPE=$(printf '%s' "$V11_RAW_INPUT" | jq -r '.tool_input.subagent_type // "unknown"')
+DESCRIPTION=$(printf '%s' "$V11_RAW_INPUT" | jq -r '.tool_input.description // ""')
+PROMPT=$(printf '%s' "$V11_RAW_INPUT" | jq -r '.tool_input.prompt // ""' | head -c 200)
+MODEL=$(printf '%s' "$V11_RAW_INPUT" | jq -r '.tool_input.model // ""')
+
+# Determine success/failure from tool output (heuristic)
+SUCCESS="unknown"
+if [ -n "$V11_TOOL_OUTPUT" ] && [ "$V11_TOOL_OUTPUT" != "null" ]; then
+    OUTPUT_LOWER=$(printf '%s' "$V11_TOOL_OUTPUT" | tr '[:upper:]' '[:lower:]')
+    if printf '%s' "$OUTPUT_LOWER" | grep -qE '(error|failed|exception|traceback)'; then
+        SUCCESS="false"
+    elif printf '%s' "$OUTPUT_LOWER" | grep -qE '(success|complete|done|finished)'; then
+        SUCCESS="true"
+    fi
+fi
+# Error field from hook input also means failure
+if [ -n "$V11_ERROR" ] && [ "$V11_ERROR" != "null" ]; then
+    SUCCESS="false"
+fi
+
+# Detect task category from description+prompt keywords
+COMBINED=$(printf '%s %s' "$DESCRIPTION" "$PROMPT" | tr '[:upper:]' '[:lower:]')
+CATEGORY="unknown"
+if printf '%s' "$COMBINED" | grep -qE '(database|schema|migration|sql)'; then
+    CATEGORY="database"
+elif printf '%s' "$COMBINED" | grep -qE '(backend|api|endpoint|server)'; then
+    CATEGORY="backend"
+elif printf '%s' "$COMBINED" | grep -qE '(frontend|react|component|ui)'; then
+    CATEGORY="frontend"
+elif printf '%s' "$COMBINED" | grep -qE '(test|coverage|unit|integration)'; then
+    CATEGORY="testing"
+elif printf '%s' "$COMBINED" | grep -qE '(deploy|deployment|production)'; then
+    CATEGORY="deployment"
+elif printf '%s' "$COMBINED" | grep -qE '(security|auth|owasp)'; then
+    CATEGORY="security"
+elif printf '%s' "$COMBINED" | grep -qE '(debug|error|fix)'; then
+    CATEGORY="debugging"
+elif printf '%s' "$COMBINED" | grep -qE '(refactor|clean|optimize)'; then
+    CATEGORY="refactoring"
+fi
+
+# Track current formation if set
+FORMATION="${CURRENT_FORMATION:-}"
+
+# Write metric entry to JSONL
+jq -nc \
+    --arg timestamp "$(date -Iseconds)" \
+    --arg agent "$SUBAGENT_TYPE" \
+    --arg description "$DESCRIPTION" \
+    --arg prompt "$PROMPT" \
+    --arg model "$MODEL" \
+    --arg success "$SUCCESS" \
+    --arg category "$CATEGORY" \
+    --arg formation "$FORMATION" \
+    '{
+        timestamp: $timestamp,
+        agent: $agent,
+        description: $description,
+        prompt: $prompt,
+        model: $model,
+        success: $success,
+        category: $category,
+        formation: (if $formation == "" then null else $formation end),
+        version: "v11.0"
+    }' >> "$METRICS_DIR/usage.jsonl"
+
+# Escalation detection (merged from detect-model-escalation)
+COUNTER_FILE="$METRICS_DIR/.agent-failure-count"
+
+if [ "$SUCCESS" == "false" ]; then
+    COUNT=0
+    [ -f "$COUNTER_FILE" ] && COUNT=$(cat "$COUNTER_FILE" 2>/dev/null)
+    COUNT=$((COUNT + 1))
+    printf '%s\n' "$COUNT" > "$COUNTER_FILE"
+
+    if [ "$COUNT" -ge 2 ]; then
+        echo ""
+        echo "ESCALATION ADVISORY: $SUBAGENT_TYPE has failed $COUNT consecutive times"
+        echo "Last task: $DESCRIPTION"
+        echo "Recommendation: Try with higher effort level or Opus model"
+        echo ""
+        printf '0\n' > "$COUNTER_FILE"
+    fi
+elif [ "$SUCCESS" == "true" ]; then
+    printf '0\n' > "$COUNTER_FILE"
+fi
+
+exit 0

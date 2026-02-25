@@ -1,0 +1,31 @@
+#!/bin/bash
+# V11 Hook: detect-project
+# PreToolUse hook that detects project context from file paths during Read operations.
+# Sets active project file for session tracking.
+
+source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
+
+if [ "$1" == "--test" ]; then
+    echo "detect-project v1"
+    exit 0
+fi
+
+# Parse stdin into V11_* globals (file_path, tool_name, etc.)
+v11_parse_input
+
+# Skip if no file path detected
+[ -z "$V11_FILE_PATH" ] && exit 0
+
+# Detect project from file path
+v11_detect_project
+
+# Skip if metadata/infrastructure file
+v11_is_metadata_file "$V11_FILE_PATH" && exit 0
+
+# Write active project if detected
+if [ -n "$V11_PROJECT" ]; then
+    mkdir -p "$(dirname "$ACTIVE_PROJECT_FILE")"
+    printf '%s\n' "$V11_PROJECT" > "$ACTIVE_PROJECT_FILE"
+fi
+
+exit 0
