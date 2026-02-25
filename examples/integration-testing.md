@@ -256,10 +256,10 @@ upstream api_gateway {
 
 server {
     listen 443 ssl http2;
-    server_name myproject.herakles.dev;
+    server_name myproject.example.com;
 
-    ssl_certificate /etc/letsencrypt/live/myproject.herakles.dev/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/myproject.herakles.dev/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/myproject.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/myproject.example.com/privkey.pem;
 
     # API routes
     location /api/ {
