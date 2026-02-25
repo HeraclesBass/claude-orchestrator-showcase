@@ -79,7 +79,7 @@ v11_detect_project() {
     for np in $NON_PROJECTS; do
       [[ "$candidate" == "$np" ]] && return
     done
-    V11_PROJECT="$candidate" V11_DETECTION_METHOD="hercules-root"
+    V11_PROJECT="$candidate" V11_DETECTION_METHOD="project-root"
   fi
 
   # Backward-compatible aliases
