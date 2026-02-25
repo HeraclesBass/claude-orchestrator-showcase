@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://herakles.dev/v11/schemas/task-metadata.schema.json",
+  "title": "V11 Task Metadata",
+  "description": "Schema for task metadata including artifact handoffs",
+  "type": "object",
+  "properties": {
+    "project": { "type": "string", "minLength": 1 },
+    "sprint": { "type": "string", "pattern": "^sprint-\\d{2}-.+" },
+    "gate": { "type": "string", "pattern": "^gate-\\d+-.+" },
+    "risk": { "enum": ["low", "medium", "high"] },
+    "agent": { "type": "string" },
+    "complexity": { "enum": ["novel", "complex", "medium", "routine"] },
+    "scope": { "enum": ["small", "medium", "large"] },
+    "parallelizable": { "type": "boolean", "default": true },
+    "phase": { "type": "string" },
+    "artifacts": { "$ref": "#/$defs/artifacts" }
+  },
+  "required": ["project", "sprint", "risk"],
+  "allOf": [
+    {
+      "if": { "properties": { "risk": { "const": "high" } } },
+      "then": { "required": ["complexity", "scope"] }
+    },
+    {
+      "not": {
+        "properties": {
+          "complexity": { "const": "routine" },
+          "risk": { "enum": ["medium", "high"] }
+        },
+        "required": ["complexity", "risk"]
+      }
+    }
+  ],
+  "$defs": {
+    "artifacts": {
+      "type": "object",
+      "properties": {
+        "trace_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Unique ID carried across all task hops for observability"
+        },
+        "summary": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Lightweight context for downstream agents"
+        },
+        "handoff_note": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "Explicit instructions for the next agent"
+        },
+        "files_changed": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Files modified during this task"
+        },
+        "files_created": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Files created during this task"
+        },
+        "files_deleted": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Files deleted during this task"
+        },
+        "api_contract": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "API endpoints and their signatures"
+        },
+        "test_hints": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Specific test scenarios for the tester agent"
+        },
+        "config_changes": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Configuration changes required"
+        },
+        "breaking_changes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Breaking changes introduced"
+        },
+        "dependencies_added": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "New dependencies added (package@version)"
+        },
+        "artifact_refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/artifact_ref" },
+          "description": "References to large artifacts stored externally"
+        }
+      },
+      "additionalProperties": false
+    },
+    "artifact_ref": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-readable artifact name"
+        },
+        "path": {
+          "type": "string",
+          "description": "Relative path to artifact file in sessions/{project}/artifacts/{task_id}/"
+        },
+        "summary": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Brief description of artifact contents"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Artifact file size in bytes"
+        }
+      },
+      "required": ["name", "path", "summary"],
+      "additionalProperties": false
+    }
+  }
+}

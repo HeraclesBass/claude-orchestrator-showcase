@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://herakles.dev/v11/schemas/formation-registry.schema.json",
+  "title": "V11 Formation Registry",
+  "description": "Schema for .formation-registry.json — defines teammate roles, ownership, and agent assignments",
+  "type": "object",
+  "properties": {
+    "formation": {
+      "type": "string",
+      "description": "Formation name from pre-built patterns",
+      "enum": [
+        "new-project", "feature-impl", "bug-investigation",
+        "security-review", "perf-optimization", "code-review",
+        "single-file", "lightweight-feature", "custom"
+      ]
+    },
+    "project": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Project identifier"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "heartbeat_interval_minutes": {
+      "type": "integer",
+      "minimum": 5,
+      "maximum": 30,
+      "default": 10,
+      "description": "How frequently (in minutes) team lead should run heartbeat checks"
+    },
+    "tool_policies": { "$ref": "#/$defs/tool_policies" },
+    "teammates": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/teammate" },
+      "minProperties": 1,
+      "maxProperties": 5,
+      "description": "Max 5 teammates per formation"
+    }
+  },
+  "required": ["formation", "project", "teammates"],
+  "additionalProperties": false,
+  "$defs": {
+    "teammate": {
+      "type": "object",
+      "properties": {
+        "agent": {
+          "type": "string",
+          "pattern": "^spec-[a-z]+-v1[01]$",
+          "description": "Agent name from registry"
+        },
+        "agent_id": {
+          "type": "string",
+          "description": "Unique agent instance ID"
+        },
+        "ownership": { "$ref": "#/$defs/ownership" },
+        "tool_policies": { "$ref": "#/$defs/policy_entry" }
+      },
+      "required": ["agent", "agent_id", "ownership"],
+      "additionalProperties": false
+    },
+    "ownership": {
+      "type": "object",
+      "properties": {
+        "directories": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Owned directory paths (prefix match)"
+        },
+        "files": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Owned file paths (exact match)"
+        },
+        "patterns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Owned file glob patterns"
+        }
+      },
+      "additionalProperties": false
+    },
+    "tool_policies": {
+      "type": "object",
+      "properties": {
+        "defaults": { "$ref": "#/$defs/policy_entry" },
+        "per_role": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/policy_entry" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "policy_entry": {
+      "type": "object",
+      "properties": {
+        "profile": {
+          "enum": ["full", "coding", "testing", "readonly", "minimal"]
+        },
+        "allow": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "deny": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
