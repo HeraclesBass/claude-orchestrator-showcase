@@ -71,4 +71,4 @@ Orchestrator (meta-agent)
 
 ---
 
-*Architecture showcase. Source code is private. Built by [D. Michael Piscitelli](https://github.com/HeraclesBass).*
+*Architecture showcase. Source code is private. Built by [D. Michael Piscitelli](https://github.com/herakles-dev).*
